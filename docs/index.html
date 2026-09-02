@@ -75,7 +75,7 @@ a{color:var(--accent)}
 <table>
 <tr><th></th><th>wds-edge-commissioning-service</th><th>edge-wda-rest-api</th></tr>
 <tr><td><b>Faces</b></td><td>North - the WDS server</td><td>South - the device itself</td></tr>
-<tr><td><b>Speaks</b></td><td>WAGO commissioning protocol <code>/api/v1/commissioning/*</code></td><td>WDA JSON:API <code>/wda/parameters/…</code>, <code>/wda/methods/…/runs</code></td></tr>
+<tr><td><b>Speaks</b></td><td>WAGO commissioning protocol <code>/api/v1/commissioning/*</code></td><td>WDA JSON:API: <code>GET /wda/parameters/…</code>, <code>PATCH /wda/parameters/…</code> (writable ids), <code>POST /wda/methods/…/runs</code></td></tr>
 <tr><td><b>Direction</b></td><td>Outbound only, client-initiated, no listening port</td><td>Inbound only, HTTPS + Basic auth on :443</td></tr>
 <tr><td><b>Owns</b></td><td>Identity, RSA-4096 key + CSR, signed cert, twin id, enrollment state, heartbeat</td><td>Device state: firmware slots, network, users, system info</td></tr>
 <tr><td><b>Persists</b></td><td><code>/etc/wds/{priv.key,signed.crt,wds-ca.state}</code></td><td>Host config: systemd-networkd, RAUC A/B slots</td></tr>
@@ -153,6 +153,16 @@ It runs on the commissioning container's own :8080 surface:</p>
 <p>Note the envelope key differs: <code>edge-wda-rest-api</code> reads
 <code>data.attributes.<b>inArgs</b></code>; this repo's server reads
 <code>data.attributes.<b>inArguments</b></code> or a flat object.</p>
+<p><b>Writes on <code>edge-wda-rest-api</code></b> arrive as <code>PATCH /wda/parameters/&lt;id&gt;</code>,
+and a parameter definition reports a <code>writeable</code> flag drawn from the same registry the
+PATCH handler dispatches on. Two ids are writable today:
+<code>0-0-networking-hostname-customname</code> (via <code>hostname1.SetStaticHostname</code>) and
+<code>0-0-networking-dns-customdnsservers</code> (via <code>resolve1.SetLinkDNS</code>, falling back
+to NetworkManager).</p>
+<div class="rule"><b>Anything carrying an IP address is refused there by a standing rule</b> - bridge
+addresses, gateways, static routes - because it is the one class of change that can strand the
+device. That is why <code>0-0-networking-configure</code> lives on this repo's :8080 surface and will
+not move to :443: the split is deliberate on both sides, not a gap waiting to be closed.</div>
 
 <h3>3.3 &nbsp;Identity consistency</h3>
 <p>Values presented at enrollment must equal the values the WDA API reports, or Device Sphere shows
@@ -167,6 +177,13 @@ a twin that disagrees with the device's own API.</p>
 </table>
 <p>Set both sides from the same values: <code>WDS_ORDER_NUMBER</code> / <code>ORDER_NUMBER</code>,
 <code>WDS_FIRMWARE_VERSION</code> / <code>FIRMWARE_VERSION</code>.</p>
+<div class="rule warn"><b>Identity can now drift at runtime.</b> Since
+<code>edge-wda-rest-api</code> made <code>0-0-networking-hostname-customname</code> writable, an
+operator can rename the device through the WDA API at any time. The commissioning heartbeat sends
+only <code>{"deviceTwinId": …}</code> and never re-reports identity, so the Device Sphere twin keeps
+the enrollment-time hostname, silently and permanently. Matching the two at deploy is no longer
+sufficient; treat a post-onboarding rename as requiring a re-enrollment until the server exposes an
+identity-update path.</div>
 
 <h2><span class="n">04</span>End-to-end sequence</h2>
 <pre><code>1  discovery    GET   /api/v1                          -> {"name":"wds"}            [commissioning]
@@ -223,6 +240,12 @@ POST, or <code>text/json</code>, returns HTTP 403. This matches WAGO's own <code
 volumes: { wds-identity: {} }</code></pre>
 <p>Required of the host, once: a RAUC keyring that trusts the bundle signature, and the
 <code>loop</code> + <code>dm-verity</code> modules loaded. See <code>edge-computer-fw-update</code>.</p>
+<div class="rule warn"><b><code>FW_UPDATE_IMAGE</code> must name a bundle-carrying tag.</b> The
+installer resolves <code>BUNDLE=/firmware/bundle.raucb</code> inside the image, so
+<code>bundle-latest</code> or <code>bundle-V040100_IX05</code> work and <code>api-latest</code>
+(238 MB, REST surface only, no embedded bundle) fails at install time. The commissioning service
+always passes <code>-e DRY_RUN=</code> explicitly, so it is unaffected by that variable's default
+having flipped to <code>false</code> upstream.</div>
 
 <h2><span class="n">06</span>Configuration ownership</h2>
 <p class="sub">Every setting belongs to exactly one side.</p>
@@ -252,6 +275,11 @@ volumes: { wds-identity: {} }</code></pre>
 <tr><td><code>GET /wda/parameters/0-0-networking-configure</code> on :443</td><td><span class="bad">404 by design</span> - confirms it lives on this repo's :8080 surface, not on <code>edge-wda-rest-api</code></td></tr>
 <tr><td>Repo test suite, <code>pytest tests/</code></td><td><span class="ok">pass</span> - 7/7</td></tr>
 </table>
+<div class="rule"><b>The deployed edge lags the <code>edge-wda-rest-api</code> repository.</b> At
+the time of these checks <code>0-0-networking-hostname-customname</code> and
+<code>0-0-networking-dns-customdnsservers</code> both returned 404 on the device, and no parameter
+reported a <code>writeable</code> flag. The writable surface described in 3.2 and 3.3 is committed
+upstream but not yet on this hardware, so the drift risk is latent, not active.</div>
 <p>Not re-run here, because it flashes a slot or needs an operator: the full
 enroll &rarr; accept &rarr; confirm handshake, and
 <code>0-0-firmwareupdate-activate</code>/<code>-start</code>. Both were previously taken to
