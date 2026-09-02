@@ -100,7 +100,7 @@ gets the device into a state where the server is allowed to call it.
 > | | `edge-wda-rest-api` | this repo's `wda.server` |
 > |---|---|---|
 > | Port | :443 (container :8443) | :8080 |
-> | Auth | Basic, admin/wago | none |
+> | Auth | Basic, admin / $WDA_PASS | none |
 > | Surface | full tree: firmware, networking, identity, users, system, presets | networking reads only, plus one writable method |
 > | Adds | - | `POST /wda/methods/0-0-networking-configure/runs` |
 
@@ -213,13 +213,13 @@ Every setting belongs to exactly one side.
 
 ## 07 &nbsp;Verification
 
-Run against the live lab: edge `192.168.2.17`, WDS server `192.168.2.199`. Every row below was
+Run against the live lab: edge `192.168.2.17`, WDS server `wdsserver`. Every row below was
 executed, not assumed.
 
 | Check | Result |
 |---|---|
-| `GET https://192.168.2.199/api/v1` | **pass** - `{"name":"wds","assemblyVersion":"1.3.1.0"}` |
-| `GET https://192.168.2.17/wda` (admin/wago) | **pass** - 200, `orderNumber 0752-9xxx`, `firmwareVersion 04.01.00`, `meta.version 1.5.2-compat` |
+| `GET https://wdsserver/api/v1` | **pass** - `{"name":"wds","assemblyVersion":"1.3.1.0"}` |
+| `GET https://192.168.2.17/wda` (admin / $WDA_PASS) | **pass** - 200, `orderNumber 0752-9xxx`, `firmwareVersion 04.01.00`, `meta.version 1.5.2-compat` |
 | `0-0-firmwareupdate-{status,progress,revertable}` | **pass** - 200; status `0` (idle) |
 | `0-0-identity-{ordernumber,serialnumber}`, `0-0-version-firmwareversion` | **pass** - 200 |
 | `0-0-networking-{ethernetports,hostname-currentname,routing-currentroutes}` | **pass** - 200; 2 EthernetPort instantiations |
