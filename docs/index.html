@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>wds-edge-commissioning-service &harr; edge-wda-rest-api</title>
+<style>
+:root{
+  --bg:#ffffff; --fg:#1f2328; --muted:#59636e; --line:#d1d9e0; --soft:#f6f8fa;
+  --accent:#0969da; --green:#1a7f37; --amber:#9a6700; --red:#cf222e;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --line:#3d444d; --soft:#151b23;
+  --accent:#4493f8; --green:#3fb950; --amber:#d29922; --red:#f85149;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:0 24px 96px}
+header{border-bottom:1px solid var(--line);padding:56px 0 28px;margin-bottom:8px}
+h1{font-size:30px;line-height:1.25;margin:0 0 10px;letter-spacing:-.02em}
+h1 code{font-size:.86em;font-family:var(--mono);background:none;padding:0}
+.lede{color:var(--muted);margin:0;max-width:70ch}
+.tags{margin-top:18px;display:flex;gap:8px;flex-wrap:wrap}
+.tag{font:600 11.5px/1 var(--mono);letter-spacing:.02em;padding:6px 10px;border:1px solid var(--line);
+  border-radius:999px;color:var(--muted)}
+.tag.ok{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent)}
+h2{font-size:20px;margin:52px 0 6px;letter-spacing:-.01em;scroll-margin-top:16px}
+h2 .n{color:var(--muted);font-family:var(--mono);font-size:14px;font-weight:600;margin-right:10px}
+h3{font-size:15.5px;margin:30px 0 6px}
+h2+p,h3+p{margin-top:6px}
+p{margin:12px 0}
+.sub{color:var(--muted);font-size:14.5px;margin:0 0 14px}
+code{font-family:var(--mono);font-size:.875em;background:var(--soft);
+  border:1px solid var(--line);border-radius:5px;padding:.1em .35em}
+pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;
+  padding:14px 16px;overflow-x:auto;margin:14px 0}
+pre code{background:none;border:0;padding:0;font-size:12.8px;line-height:1.6}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14.5px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--soft);font-weight:600;white-space:nowrap}
+td code,th code{font-size:.9em}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:var(--soft)}
+figcaption{color:var(--muted);font-size:13px;margin-top:8px}
+.rule{border-left:3px solid var(--accent);background:var(--soft);padding:12px 16px;margin:20px 0;border-radius:0 6px 6px 0}
+.rule b{color:var(--fg)}
+.warn{border-left-color:var(--amber)}
+.ok{color:var(--green);font-weight:600}
+.bad{color:var(--red);font-weight:600}
+ul{padding-left:20px}li{margin:6px 0}
+footer{border-top:1px solid var(--line);margin-top:64px;padding-top:20px;color:var(--muted);font-size:13.5px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1><code>wds-edge-commissioning-service</code> &harr; <code>edge-wda-rest-api</code></h1>
+  <p class="lede">The integration contract between the two device-side services that make a WAGO
+  Edge Computer (752-9xxx, x86-64) behave like a PFC/CC inside WAGO Device Sphere.
+  Each section covers one concern; together they cover the whole seam.</p>
+  <div class="tags">
+    <span class="tag ok">verified on live hardware</span>
+    <span class="tag">WDS 1.3.1</span>
+    <span class="tag">WDA 1.5.2-compat</span>
+    <span class="tag">edge 752-9xxx</span>
+  </div>
+</header>
+
+<h2><span class="n">01</span>The two components</h2>
+<p class="sub">Split by direction: one faces the server, one faces the device.</p>
+<table>
+<tr><th></th><th>wds-edge-commissioning-service</th><th>edge-wda-rest-api</th></tr>
+<tr><td><b>Faces</b></td><td>North - the WDS server</td><td>South - the device itself</td></tr>
+<tr><td><b>Speaks</b></td><td>WAGO commissioning protocol <code>/api/v1/commissioning/*</code></td><td>WDA JSON:API <code>/wda/parameters/…</code>, <code>/wda/methods/…/runs</code></td></tr>
+<tr><td><b>Direction</b></td><td>Outbound only, client-initiated, no listening port</td><td>Inbound only, HTTPS + Basic auth on :443</td></tr>
+<tr><td><b>Owns</b></td><td>Identity, RSA-4096 key + CSR, signed cert, twin id, enrollment state, heartbeat</td><td>Device state: firmware slots, network, users, system info</td></tr>
+<tr><td><b>Persists</b></td><td><code>/etc/wds/{priv.key,signed.crt,wds-ca.state}</code></td><td>Host config: systemd-networkd, RAUC A/B slots</td></tr>
+<tr><td><b>Lifetime</b></td><td>One-shot onboarding, then a long-lived heartbeat</td><td>Long-lived service</td></tr>
+<tr><td><b>Ships from</b></td><td>this repo</td><td><code>WagoAlex/edge-computer-fw-update</code>, <code>MODE=server</code></td></tr>
+</table>
+
+<div class="rule"><b>Boundary rule.</b> The commissioning service never calls the WDA REST API, and the
+WDA API never talks to the WDS server. They are coupled by a shared installer image, a shared
+parameter model and shared identity strings - not by a request between them. Everything that
+crosses the line crosses at one of the three points in section 03.</div>
+
+<h2><span class="n">02</span>Runtime topology</h2>
+<figure>
+  <img src="topology.svg" alt="Device Sphere talks to the commissioning service over the commissioning API and to the WDA REST API directly; the two device-side services share the host but do not call each other.">
+  <figcaption>Both services run as containers on the edge with <code>network_mode: host</code>.
+  Once the device is <code>Connected</code>, Device Sphere reaches the WDA API directly -
+  the commissioning service is not in that path.</figcaption>
+</figure>
+
+<h2><span class="n">03</span>Integration points</h2>
+<p class="sub">Exactly three. Nothing else crosses the boundary.</p>
+
+<h3>3.1 &nbsp;Firmware: one installer, two entry points</h3>
+<p>Both sides drive the <b>same</b> installer image,
+<code>wagoalex/wago-fw-update-edge-computer</code>. The coupling is that image and its mount
+contract, not a REST call between the services.</p>
+<table>
+<tr><th>Entry point</th><th>Driven by</th><th>Path</th></tr>
+<tr><td><b>One-shot</b> <code>docker run</code>, <code>MODE=oneshot</code></td><td>commissioning service, when a setup bundle carries a <code>[Firmware]</code> section or <code>Workflow=firmwareupdate</code></td><td><code>agent/fwupdate.py</code> &rarr; container &rarr; host <code>rauc.service</code> over D-Bus. No REST hop.</td></tr>
+<tr><td><b>WDA method state machine</b>, <code>MODE=server</code></td><td>Device Sphere UI or any WDA client</td><td><code>POST /wda/methods/0-0-firmwareupdate-activate/runs</code> &rarr; <code>…-start/runs</code> &rarr; poll <code>0-0-firmwareupdate-status</code></td></tr>
+</table>
+<pre><code># the WDA path, as the UI drives it
+POST /wda/methods/0-0-firmwareupdate-activate/runs   {"data":{"attributes":{"inArgs":{}}}}
+POST /wda/methods/0-0-firmwareupdate-start/runs      {"data":{"attributes":{"inArgs":{}}}}
+GET  /wda/parameters/0-0-firmwareupdate-status       # 0 idle … 4 Unconfirmed
+GET  /wda/parameters/0-0-firmwareupdate-progress
+GET  /wda/parameters/0-0-firmwareupdate-errorcause
+# status 4: RAUC wrote the inactive slot. reboot activates; a bad boot falls back.</code></pre>
+<p>Both entry points end in the same place: RAUC writing the inactive A/B slot through the host
+service. No RAUC logic lives in the commissioning service - it decides <i>when</i>, the
+installer decides <i>how</i>.</p>
+<div class="rule warn"><b>The trigger chain.</b>
+<code>Configuration/Device Sphere/Target Firmware</code> in the UI maps to
+<code>GET /api/v1/commissioning/setup?targetFirmware=&lt;ver&gt;</code>, which the commissioning
+service fetches over mTLS, verifies (CMS + sha256) and applies. That is where the one-shot entry
+point is invoked.</div>
+
+<h3>3.2 &nbsp;Device model: the WDA parameter tree</h3>
+<p>Device Sphere expects the PFC/CC tree. <code>edge-wda-rest-api</code> serves it; the commissioning
+service only gets the device into a state where the server is allowed to call it.</p>
+<table>
+<tr><th>Device Sphere node</th><th>WDA parameter</th></tr>
+<tr><td><code>Configuration/Device Sphere/Target Firmware</code></td><td><code>0-0-firmwareupdate-*</code> (see 3.1)</td></tr>
+<tr><td><code>Network/Bridge/EthernetPort/*</code></td><td><code>0-0-networking-ethernetports[-N-current*]</code></td></tr>
+<tr><td>Hostname, domain</td><td><code>0-0-networking-hostname-*</code>, <code>0-0-networking-domain-*</code></td></tr>
+<tr><td>Routing, DNS</td><td><code>0-0-networking-routing-*</code>, <code>0-0-networking-dns-*</code></td></tr>
+<tr><td>Identity, version</td><td><code>0-0-identity-*</code>, <code>0-0-version-*</code></td></tr>
+</table>
+<div class="rule"><b>Two WDA servers exist on the edge. Do not confuse them.</b>
+<table style="margin:10px 0 0">
+<tr><th></th><th>edge-wda-rest-api</th><th>this repo's <code>wda.server</code></th></tr>
+<tr><td>Port</td><td>:443 (container :8443)</td><td>:8080</td></tr>
+<tr><td>Auth</td><td>Basic, admin/wago</td><td>none</td></tr>
+<tr><td>Surface</td><td>full tree: firmware, networking, identity, users, system, presets</td><td>networking reads only, plus one writable method</td></tr>
+<tr><td>Adds</td><td>-</td><td><code>POST /wda/methods/0-0-networking-configure/runs</code></td></tr>
+</table></div>
+<p>The writable configure method this repo contributes is <b>not</b> part of
+<code>edge-wda-rest-api</code> - requesting it there returns 404 (verified, section 07).
+It runs on the commissioning container's own :8080 surface:</p>
+<pre><code>POST :8080/wda/methods/0-0-networking-configure/runs
+{"port": 1, "ip": "192.168.2.17", "prefix": 24, "gateway": "192.168.2.1"}
+# accepts the flat body above or a JSON:API envelope with "inArguments".
+# writes a systemd-networkd drop-in; live `ip` apply as fallback.</code></pre>
+<p>Note the envelope key differs: <code>edge-wda-rest-api</code> reads
+<code>data.attributes.<b>inArgs</b></code>; this repo's server reads
+<code>data.attributes.<b>inArguments</b></code> or a flat object.</p>
+
+<h3>3.3 &nbsp;Identity consistency</h3>
+<p>Values presented at enrollment must equal the values the WDA API reports, or Device Sphere shows
+a twin that disagrees with the device's own API.</p>
+<table>
+<tr><th>Enrollment field (<code>deviceIdentInfos</code>)</th><th>Source</th><th>Must match WDA parameter</th></tr>
+<tr><td><code>orderNumber</code></td><td><code>WDS_ORDER_NUMBER</code></td><td><code>0-0-identity-ordernumber</code></td></tr>
+<tr><td><code>firmwareVersion</code></td><td><code>/etc/REVISIONS</code></td><td><code>0-0-version-firmwareversion</code></td></tr>
+<tr><td><code>uii</code></td><td>type label / <code>WDS_UII</code></td><td><code>0-0-identity-serialnumber</code></td></tr>
+<tr><td><code>hostname</code></td><td><code>gethostname(2)</code></td><td><code>0-0-networking-hostname-currentname</code></td></tr>
+<tr><td><code>macAdress</code> (sic, one d)</td><td><code>SIOCGIFHWADDR</code></td><td><code>0-0-networking-ethernetports-N-currentMacAddress</code></td></tr>
+</table>
+<p>Set both sides from the same values: <code>WDS_ORDER_NUMBER</code> / <code>ORDER_NUMBER</code>,
+<code>WDS_FIRMWARE_VERSION</code> / <code>FIRMWARE_VERSION</code>.</p>
+
+<h2><span class="n">04</span>End-to-end sequence</h2>
+<pre><code>1  discovery    GET   /api/v1                          -> {"name":"wds"}            [commissioning]
+2  enroll       POST  /api/v1/commissioning/enroll      -> 201 deviceTwinId          [commissioning]
+3  accept       operator accepts in the Device Sphere UI                             [operator]
+4  poll         POST  /api/v1/commissioning/status      -> Prepared + signed cert    [commissioning]
+5  bundle       GET   /api/v1/commissioning/setup       -> appload, mTLS             [commissioning]
+6  firmware     bundle [Firmware] -> docker run installer, one-shot -> RAUC          [installer]
+7  confirm      PATCH /api/v1/commissioning/confirm     -> 200, twin Connected       [commissioning]
+8  heartbeat    every 30s, answers delete-confirmation                               [commissioning]
+9  managed      Device Sphere reads/writes /wda/* directly                           [WDA API]</code></pre>
+<p>Steps 1-5, 7, 8 are the commissioning service. Step 6 is the shared installer. Step 9 is the
+WDA API. Step 3 is a human. Nothing else exists in this flow.</p>
+<div class="rule warn"><b>Two non-obvious requirements</b>, both established against a real WDS 1.3.1 server:
+<ul>
+<li><code>confirm</code> must be <b>PATCH</b> with <code>Content-Type: application/json</code>.
+POST, or <code>text/json</code>, returns HTTP 403. This matches WAGO's own <code>wds-device-agent</code>.</li>
+<li>The server's <b>accept resolves the device by item number</b>. A genuine edge item
+(<code>0752-9401</code>) returns <code>accept: Not Found</code>; a recognized controller item
+(<code>0750-8302</code>) succeeds. See section 08.</li>
+</ul></div>
+
+<h2><span class="n">05</span>Deployment</h2>
+<pre><code>services:
+  commissioning:
+    image: wago-edge-commissioning:latest
+    network_mode: host
+    environment:
+      MODE: both                     # onboard | wda | fwupdate | both
+      WDS_SERVERS: https://wdsserver:443
+      WDS_MODE: unsecure             # TOFU the server cert
+      WDS_ORDER_NUMBER: "0750-8302"  # see section 08
+      FW_UPDATE_IMAGE: wagoalex/wago-fw-update-edge-computer:bundle-latest
+      FW_DRY_RUN: "false"
+      WDA_PORT: "8080"               # this repo's networking surface
+    volumes:
+      - wds-identity:/etc/wds
+      - /var/run/docker.sock:/var/run/docker.sock   # to launch the installer
+
+  wda:
+    image: wagoalex/wago-fw-update-edge-computer:bundle-latest
+    restart: unless-stopped
+    environment:
+      MODE: server
+      WDA_PASSWORD: "..."
+      ORDER_NUMBER: "0752-9xxx"
+      FIRMWARE_VERSION: "04.09.01(31)"
+    ports: ["443:8443"]
+    volumes:
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
+      - /docker/rauc-stage:/docker/rauc-stage
+
+volumes: { wds-identity: {} }</code></pre>
+<p>Required of the host, once: a RAUC keyring that trusts the bundle signature, and the
+<code>loop</code> + <code>dm-verity</code> modules loaded. See <code>edge-computer-fw-update</code>.</p>
+
+<h2><span class="n">06</span>Configuration ownership</h2>
+<p class="sub">Every setting belongs to exactly one side.</p>
+<table>
+<tr><th>Concern</th><th>Owner</th><th>Where</th></tr>
+<tr><td>Server discovery, TLS mode, poll rate, timeout</td><td>commissioning</td><td><code>/etc/wds/wds.cfg</code>, <code>WDS_*</code> env</td></tr>
+<tr><td>Device key, CSR, signed cert, twin id, state</td><td>commissioning</td><td><code>/etc/wds/</code> volume</td></tr>
+<tr><td>Which firmware version to install</td><td>commissioning, from the server</td><td><code>?targetFirmware=</code></td></tr>
+<tr><td>How firmware installs, slot choice, rollback</td><td>installer / WDA API</td><td>RAUC over host D-Bus</td></tr>
+<tr><td>Network interface config</td><td>WDA API (reads), this repo's :8080 (writes)</td><td>systemd-networkd drop-ins</td></tr>
+<tr><td>API auth</td><td>WDA API</td><td><code>WDA_PASSWORD</code></td></tr>
+<tr><td>Reported identity strings</td><td>both, must agree</td><td>section 3.3</td></tr>
+</table>
+
+<h2><span class="n">07</span>Verification</h2>
+<p class="sub">Run against the live lab: edge <code>192.168.2.17</code>, WDS server
+<code>192.168.2.199</code>. Every row below was executed, not assumed.</p>
+<table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td><code>GET https://192.168.2.199/api/v1</code></td><td><span class="ok">pass</span> - <code>{"name":"wds","assemblyVersion":"1.3.1.0"}</code></td></tr>
+<tr><td><code>GET https://192.168.2.17/wda</code> (admin/wago)</td><td><span class="ok">pass</span> - 200, <code>orderNumber 0752-9xxx</code>, <code>firmwareVersion 04.01.00</code>, <code>meta.version 1.5.2-compat</code></td></tr>
+<tr><td><code>0-0-firmwareupdate-{status,progress,revertable}</code></td><td><span class="ok">pass</span> - 200; status <code>0</code> (idle)</td></tr>
+<tr><td><code>0-0-identity-{ordernumber,serialnumber}</code>, <code>0-0-version-firmwareversion</code></td><td><span class="ok">pass</span> - 200</td></tr>
+<tr><td><code>0-0-networking-{ethernetports,hostname-currentname,routing-currentroutes}</code></td><td><span class="ok">pass</span> - 200; 2 EthernetPort instantiations</td></tr>
+<tr><td>Method contract: <code>POST /wda/methods/0-0-firmwareupdate-getlastlogentries/runs</code></td><td><span class="ok">pass</span> - 201, <code>executionStatus: done</code>, <code>outArgs.Entries</code></td></tr>
+<tr><td>Control: <code>POST /wda/methods/0-0-does-not-exist/runs</code></td><td><span class="ok">pass</span> - 404, so a 201 above is real routing</td></tr>
+<tr><td><code>GET /wda/parameters/0-0-networking-configure</code> on :443</td><td><span class="bad">404 by design</span> - confirms it lives on this repo's :8080 surface, not on <code>edge-wda-rest-api</code></td></tr>
+<tr><td>Repo test suite, <code>pytest tests/</code></td><td><span class="ok">pass</span> - 7/7</td></tr>
+</table>
+<p>Not re-run here, because it flashes a slot or needs an operator: the full
+enroll &rarr; accept &rarr; confirm handshake, and
+<code>0-0-firmwareupdate-activate</code>/<code>-start</code>. Both were previously taken to
+<code>Connected</code> and to RAUC status 4 on this same hardware.</p>
+
+<h2><span class="n">08</span>Known limits</h2>
+<table>
+<tr><th>Limit</th><th>Owner</th><th>Status</th></tr>
+<tr><td><code>commissioning/accept</code> returns 404 for genuine edge items <code>0752-9xxx</code>; succeeds for a known controller item <code>0750-8302</code></td><td>WDS server (WAGO)</td><td>Workaround: <code>WDS_ORDER_NUMBER=0750-8302</code>. Real fix is server-side catalog registration of the edge item, mapped to a Docker-mode profile.</td></tr>
+<tr><td>No amd64 build of WAGO's <code>wds-device-agent</code>; the registry ships <code>ptxdist-*</code> arm/arm64 only</td><td>WAGO registry</td><td>This repo substitutes an x86 <code>device_agent.py</code>; an amd64 image equivalent was built.</td></tr>
+<tr><td>ARM <code>.ipk</code> in the setup bundle cannot be applied on x86</td><td>bundle format</td><td>Skipped deliberately; the x86 agent runs in its place.</td></tr>
+<tr><td>Firmware activation needs a reboot</td><td>operator</td><td>RAUC writes the inactive slot; reboot activates, a bad boot auto-falls-back.</td></tr>
+<tr><td>The commissioning service's own WDA surface is networking-only and unauthenticated</td><td>this repo</td><td>Intended for host-local use; do not expose it off-device.</td></tr>
+</table>
+
+<h2><span class="n">09</span>Out of scope</h2>
+<ul>
+<li>RAUC bundle building and signing - <code>WagoAlex/edge-computer-fw-update</code>.</li>
+<li>The WDS server itself, its device catalog, and pairing mode - WAGO product.</li>
+<li>CODESYS, BACnet, and the rest of the PFC application stack.</li>
+<li>Any inbound path into the commissioning service; it has no listening port.</li>
+</ul>
+
+<footer>
+Verified against WDS 1.3.1 and a live WAGO Edge Computer 752-9xxx.
+Source of the claims in section 07 is the repository README.
+</footer>
+
+</div>
+</body>
+</html>

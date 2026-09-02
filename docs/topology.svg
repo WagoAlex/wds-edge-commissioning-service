@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" width="760" height="430" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif">
+<style>
+  .box{fill:none;stroke:#8b949e;stroke-width:1.5}
+  .edge{fill:none;stroke:#8b949e;stroke-width:1.5;stroke-dasharray:5 4}
+  .svc{fill:#58a6ff;fill-opacity:.10;stroke:#58a6ff;stroke-width:1.5}
+  .svc2{fill:#3fb950;fill-opacity:.10;stroke:#3fb950;stroke-width:1.5}
+  .srv{fill:#d29922;fill-opacity:.10;stroke:#d29922;stroke-width:1.5}
+  t,text{fill:#8b949e}
+  .h{font-size:13px;font-weight:600;fill:#adbac7}
+  .s{font-size:11px;fill:#8b949e}
+  .m{font-size:10.5px;fill:#768390;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .ar{fill:none;stroke:#768390;stroke-width:1.4;marker-end:url(#a)}
+</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" fill="#768390"/></marker></defs>
+
+<rect class="srv" x="250" y="10" width="260" height="48" rx="6"/>
+<text class="h" x="380" y="31" text-anchor="middle">WAGO Device Sphere (WDS) 1.3.1</text>
+<text class="m" x="380" y="47" text-anchor="middle">server + operator UI</text>
+
+<path class="ar" d="M330 58 V 150"/>
+<text class="m" x="322" y="90" text-anchor="end">/api/v1/commissioning/*</text>
+<text class="m" x="322" y="104" text-anchor="end">outbound, mTLS after enroll</text>
+
+<path class="ar" d="M470 58 V 150"/>
+<text class="m" x="482" y="90">/wda/* (once Connected)</text>
+<text class="m" x="482" y="104">HTTPS + Basic auth</text>
+
+<rect class="box" x="20" y="150" width="720" height="262" rx="8"/>
+<text class="h" x="36" y="172">WAGO Edge Computer 752-9xxx  ·  x86-64 Debian + RAUC A/B</text>
+
+<rect class="svc" x="45" y="192" width="290" height="94" rx="6"/>
+<text class="h" x="60" y="214">wds-edge-commissioning-service</text>
+<text class="s" x="60" y="232">north-facing · client only · no listening port</text>
+<text class="m" x="60" y="252">enroll · status · setup · PATCH confirm</text>
+<text class="m" x="60" y="268">heartbeat · /etc/wds/{priv.key,signed.crt}</text>
+
+<rect class="svc2" x="425" y="192" width="290" height="94" rx="6"/>
+<text class="h" x="440" y="214">edge-wda-rest-api</text>
+<text class="s" x="440" y="232">south-facing · server :443 · Basic auth</text>
+<text class="m" x="440" y="252">0-0-firmwareupdate-* · 0-0-networking-*</text>
+<text class="m" x="440" y="268">0-0-identity-* · 0-0-version-*</text>
+
+<path class="edge" d="M335 239 H 425"/>
+<text class="m" x="380" y="233" text-anchor="middle">no</text>
+<text class="m" x="380" y="247" text-anchor="middle">direct call</text>
+
+<rect class="box" x="45" y="318" width="290" height="72" rx="6"/>
+<text class="s" x="60" y="340">/etc/wds/ (identity volume)</text>
+<text class="m" x="60" y="358">priv.key · signed.crt · wds-ca.state</text>
+<text class="m" x="60" y="376">device_twin_id</text>
+
+<rect class="box" x="425" y="318" width="290" height="72" rx="6"/>
+<text class="s" x="440" y="340">host control plane</text>
+<text class="m" x="440" y="358">rauc.service (D-Bus) · systemd-networkd</text>
+<text class="m" x="440" y="376">A/B slots rootfs.1 / rootfs.2</text>
+
+<path class="ar" d="M190 286 V 318"/>
+<path class="ar" d="M570 286 V 318"/>
+
+<path class="ar" d="M180 300 C 180 306 560 306 560 318" stroke-dasharray="4 3"/>
+<text class="m" x="370" y="306" text-anchor="middle">shared installer image (docker run, one-shot)</text>
+</svg>
